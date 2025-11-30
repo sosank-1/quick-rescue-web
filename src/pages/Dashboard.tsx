@@ -16,10 +16,21 @@ import {
   Ambulance,
 } from "lucide-react";
 import { toast } from "sonner";
+import { RegisterPatientDialog } from "@/components/forms/RegisterPatientDialog";
+import { NewPrescriptionDialog } from "@/components/forms/NewPrescriptionDialog";
+import { ScheduleAppointmentDialog } from "@/components/forms/ScheduleAppointmentDialog";
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [patientDialogOpen, setPatientDialogOpen] = useState(false);
+  const [prescriptionDialogOpen, setPrescriptionDialogOpen] = useState(false);
+  const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false);
+  const [stats, setStats] = useState({
+    totalPatients: 0,
+    activeAppointments: 0,
+    prescriptionsToday: 0,
+  });
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -27,10 +38,38 @@ const Dashboard = () => {
       if (!session) {
         navigate("/auth");
       }
+      await fetchStats();
       setLoading(false);
     };
     checkAuth();
   }, [navigate]);
+
+  const fetchStats = async () => {
+    try {
+      const { count: patientsCount } = await supabase
+        .from("patients")
+        .select("*", { count: "exact", head: true });
+
+      const { count: appointmentsCount } = await supabase
+        .from("appointments")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "scheduled");
+
+      const today = new Date().toISOString().split("T")[0];
+      const { count: prescriptionsCount } = await supabase
+        .from("prescriptions")
+        .select("*", { count: "exact", head: true })
+        .gte("created_at", today);
+
+      setStats({
+        totalPatients: patientsCount || 0,
+        activeAppointments: appointmentsCount || 0,
+        prescriptionsToday: prescriptionsCount || 0,
+      });
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+    }
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -38,24 +77,24 @@ const Dashboard = () => {
     navigate("/auth");
   };
 
-  const stats = [
-    { label: "Total Patients", value: "0", change: "+12%", icon: Users, up: true },
-    { label: "Active Appointments", value: "0", change: "+5%", icon: Calendar, up: true },
-    { label: "Prescriptions Today", value: "0", change: "+8%", icon: FileText, up: true },
+  const statsData = [
+    { label: "Total Patients", value: stats.totalPatients.toString(), change: "+12%", icon: Users, up: true },
+    { label: "Active Appointments", value: stats.activeAppointments.toString(), change: "+5%", icon: Calendar, up: true },
+    { label: "Prescriptions Today", value: stats.prescriptionsToday.toString(), change: "+8%", icon: FileText, up: true },
     { label: "Bed Occupancy", value: "78%", change: "-2%", icon: Activity, up: false },
   ];
 
   const quickActions = [
-    { label: "Register Patient", icon: Users },
-    { label: "New Prescription", icon: FileText },
-    { label: "Schedule Appointment", icon: Calendar },
+    { label: "Register Patient", icon: Users, onClick: () => setPatientDialogOpen(true) },
+    { label: "New Prescription", icon: FileText, onClick: () => setPrescriptionDialogOpen(true) },
+    { label: "Schedule Appointment", icon: Calendar, onClick: () => setAppointmentDialogOpen(true) },
     { label: "Book Ambulance", icon: Ambulance, onClick: () => navigate("/emergency") },
   ];
 
   const viewRecords = [
-    { label: "View Patients", icon: Eye },
-    { label: "View Prescriptions", icon: Eye },
-    { label: "View Appointments", icon: Eye },
+    { label: "View Patients", icon: Eye, onClick: () => navigate("/view-patients") },
+    { label: "View Prescriptions", icon: Eye, onClick: () => navigate("/view-prescriptions") },
+    { label: "View Appointments", icon: Eye, onClick: () => navigate("/view-appointments") },
   ];
 
   if (loading) {
@@ -107,7 +146,7 @@ const Dashboard = () => {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {stats.map((stat) => (
+          {statsData.map((stat) => (
             <Card key={stat.label} className="p-6">
               <div className="flex items-start justify-between mb-4">
                 <div className="w-12 h-12 rounded-lg bg-secondary flex items-center justify-center">
@@ -163,6 +202,7 @@ const Dashboard = () => {
                 key={record.label}
                 variant="outline"
                 className="h-24 flex flex-col items-center justify-center gap-3 bg-muted/50"
+                onClick={record.onClick}
               >
                 <record.icon className="w-6 h-6" />
                 <span>{record.label}</span>
@@ -204,6 +244,23 @@ const Dashboard = () => {
           </Card>
         </div>
       </div>
+
+      {/* Dialogs */}
+      <RegisterPatientDialog
+        open={patientDialogOpen}
+        onOpenChange={setPatientDialogOpen}
+        onSuccess={fetchStats}
+      />
+      <NewPrescriptionDialog
+        open={prescriptionDialogOpen}
+        onOpenChange={setPrescriptionDialogOpen}
+        onSuccess={fetchStats}
+      />
+      <ScheduleAppointmentDialog
+        open={appointmentDialogOpen}
+        onOpenChange={setAppointmentDialogOpen}
+        onSuccess={fetchStats}
+      />
     </div>
   );
 };
