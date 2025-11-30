@@ -4,9 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Activity, Ambulance, Phone, MapPin, AlertCircle } from "lucide-react";
+import { Activity, Ambulance, Phone, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { LocationPicker } from "@/components/LocationPicker";
 
 const Emergency = () => {
   const navigate = useNavigate();
@@ -16,6 +17,11 @@ const Emergency = () => {
     location: "",
     notes: "",
   });
+  const [selectedLocation, setSelectedLocation] = useState<{
+    lat: number;
+    lng: number;
+    address: string;
+  } | null>(null);
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -28,33 +34,21 @@ const Emergency = () => {
 
   const handleEmergencyCall = () => {
     // Validate form
-    if (!formData.name || !formData.contact || !formData.location) {
+    if (!formData.name || !formData.contact) {
       toast.error("Please fill in all required fields");
       return;
     }
 
+    const locationText = selectedLocation?.address || formData.location || "Location not specified";
+
     // Prepare WhatsApp message
-    const message = `🚨 EMERGENCY AMBULANCE REQUEST 🚨
+    const message = `🚨 EMERGENCY AMBULANCE REQUEST 🚨%0A%0APatient Name: ${encodeURIComponent(formData.name)}%0AContact Number: ${encodeURIComponent(formData.contact)}%0APick-up Location: ${encodeURIComponent(locationText)}%0A${formData.notes ? `Additional Notes: ${encodeURIComponent(formData.notes)}` : ""}%0A%0APlease dispatch ambulance immediately!`;
 
-Patient Name: ${formData.name}
-Contact Number: ${formData.contact}
-Pick-up Location: ${formData.location}
-${formData.notes ? `Additional Notes: ${formData.notes}` : ""}
+    const whatsappNumber = "919395072164";
+    const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${message}`;
 
-Please dispatch ambulance immediately!`;
-
-    // Encode message for URL
-    const encodedMessage = encodeURIComponent(message);
-    const whatsappNumber = "919395072164"; // Format: country code + number without +
-    const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`;
-
-    // Open WhatsApp
     window.open(whatsappUrl, "_blank");
     toast.success("Opening WhatsApp to send emergency request");
-  };
-
-  const handleSelectLocation = () => {
-    toast.info("Map integration coming soon! Please enter your location manually.");
   };
 
   return (
@@ -151,14 +145,15 @@ Please dispatch ambulance immediately!`;
                 />
               </div>
 
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={handleSelectLocation}
-              >
-                <MapPin className="w-4 h-4 mr-2" />
-                Select Location on Map
-              </Button>
+              <div className="space-y-2">
+                <Label>Select Location on Map</Label>
+                <LocationPicker
+                  onLocationSelect={(loc) => {
+                    setSelectedLocation(loc);
+                    setFormData({ ...formData, location: loc.address });
+                  }}
+                />
+              </div>
             </div>
 
             {/* Additional Notes */}
